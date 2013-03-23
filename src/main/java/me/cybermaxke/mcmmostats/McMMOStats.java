@@ -26,11 +26,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.permissions.Permission;
-import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import com.gmail.nossr50.datatypes.skills.SkillType;
 import com.gmail.nossr50.events.experience.McMMOPlayerLevelUpEvent;
 import com.gmail.nossr50.events.experience.McMMOPlayerXpGainEvent;
 
@@ -63,14 +60,17 @@ public class McMMOStats extends JavaPlugin implements Listener {
 	}
 
 	public static StatsGui getGui(Player player) {
+		if (!statsGui.containsKey(player.getName())) {
+			statsGui.put(player.getName(), new StatsGui(player));
+		}
 		return statsGui.get(player.getName());
 	}
 
 	@EventHandler
 	public void onPlayerJoin(PlayerJoinEvent e) {
 		Player p = e.getPlayer();
-		statsGui.put(p.getName(), new StatsGui(p));
-		if (Config.isGuiShown(p) && p.hasPermission(new Permission("mcMMOStatsGui.UseGui", PermissionDefault.OP))) {
+		getGui(p);
+		if (Config.isGuiShown(p) && Permissions.hasUseGuiPermission(p)) {
 			getGui(p).show();
 		}
 	}
@@ -84,19 +84,15 @@ public class McMMOStats extends JavaPlugin implements Listener {
 
 	@EventHandler
 	public void onMcMMOPlayerLevelUp(McMMOPlayerLevelUpEvent e) {
-		if (this.hasSkillPermission(e.getPlayer(), e.getSkill())) {
+		if (Permissions.hasSkillPermission(e.getPlayer(), e.getSkill())) {
 			getGui(e.getPlayer()).sendSkillStats(e.getSkill());
 		}
 	}
 
 	@EventHandler
 	public void onMcMMOPlayerXpGain(McMMOPlayerXpGainEvent e) {
-		if (this.hasSkillPermission(e.getPlayer(), e.getSkill())) {
+		if (Permissions.hasSkillPermission(e.getPlayer(), e.getSkill())) {
 			getGui(e.getPlayer()).sendSkillStats(e.getSkill());
 		}
-	}
-
-	public boolean hasSkillPermission(Player player, SkillType type) {
-		return player.hasPermission(new Permission("mcMMOStatsGui.UseSkillGui." + type.toString(), PermissionDefault.OP));
 	}
 }
