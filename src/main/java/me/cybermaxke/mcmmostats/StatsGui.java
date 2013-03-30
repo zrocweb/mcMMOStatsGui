@@ -18,9 +18,7 @@
  */
 package me.cybermaxke.mcmmostats;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -45,11 +43,10 @@ public class StatsGui {
 	private ScoreboardObjective skillStats;
 
 	private boolean show = false;
-	private int i;
 	private int ticksBeforeReturn = 200;
 	private Updater updater;
 
-	private Map<ScoreboardObjective, List<ScoreboardScore>> last = new HashMap<ScoreboardObjective, List<ScoreboardScore>>();
+	private Map<String, Map<String, Integer>> last = new HashMap<String, Map<String, Integer>>();
 	private Map<SkillType, ScoreboardObjective> skills = new HashMap<SkillType, ScoreboardObjective>();
 
 	private Player player;
@@ -67,21 +64,16 @@ public class StatsGui {
 			obj.setDisplayName(LanguageConfig.getName(t));
 			this.skills.put(t, obj);
 		}
-
-		this.updater = new Updater(this);
-		this.updater.runTaskTimer(McMMOStats.getInstance(), 0, 1);
 	}
 
-	public void onTick() {
-		++this.i;
-		if (this.i > this.ticksBeforeReturn) {
-			this.i = 0;
-			this.sendAllStats();
-		}
+	public void resetUpdater() {
+		this.updater.cancel();
+		this.updater = new Updater(this);
+		this.updater.runTaskLater(McMMOStats.getInstance(), this.ticksBeforeReturn);
 	}
 
 	public void sendSkillStats(SkillType type) {
-		this.i = 0;
+		this.resetUpdater();
 		Map<String, Integer> m = new HashMap<String, Integer>();
 		PlayerProfile pr = this.mcplayer.getProfile();
 
@@ -105,26 +97,32 @@ public class StatsGui {
 	}
 
 	public void sendScores(ScoreboardObjective objective, Map<String, Integer> values) {
-		List<ScoreboardScore> scores = new ArrayList<ScoreboardScore>();
+		Map<String, Integer> last = this.last.containsKey(objective.getName()) ? this.last.get(objective.getName()) : null;
+		Map<String, ScoreboardScore> scores = new HashMap<String, ScoreboardScore>();
 
 		for (Entry<String, Integer> en : values.entrySet()) {
 			ScoreboardScore s = this.scoreboard.getPlayerScoreForObjective(en.getKey(), objective);
 			s.setScore(en.getValue());
-			scores.add(s);
+			scores.put(en.getKey(), s);
 		}
 
-		if (this.last.containsKey(objective)) {
-			for (ScoreboardScore s : this.last.get(objective)) {
-				PacketUtils.sendPacket(this.player, this.getRemoveScorePacket(s));
+		if (last != null) {
+			for (Entry<String, Integer> en : last.entrySet()) {
+				if (!values.containsKey(en.getKey())) {
+					PacketUtils.sendPacket(this.player, this.getRemoveScorePacket(scores.get(en.getKey())));
+				}
 			}
 		}
 
-		for (ScoreboardScore s : scores) {
-			PacketUtils.sendPacket(this.player, this.getCreateScorePacket(s));
+		for (Entry<String, Integer> en : values.entrySet()) {
+			String k = en.getKey();
+			if (last == null || !last.containsKey(k) || last.get(k) != en.getValue()) {
+				PacketUtils.sendPacket(this.player, this.getCreateScorePacket(scores.get(k)));
+			}
 		}
 
 		PacketUtils.sendPacket(this.player, this.getDisplayPacket(1, objective));
-		this.last.put(objective, scores);
+		this.last.put(objective.getName(), values);
 	}
 
 	public void show() {
@@ -195,7 +193,8 @@ public class StatsGui {
 
 		@Override
 		public void run() {
-			this.gui.onTick();
+			this.gui.sendAllStats();
+			this.gui.resetUpdater();
 		}
 	}
 }
